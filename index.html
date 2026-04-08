@@ -222,7 +222,16 @@ body{font-family:'Nunito',sans-serif;color:var(--dark);font-size:14px;}
     <div class="sc"><div class="sv cg" id="sst">0🔥</div><div class="sl">streak</div></div>
     <div class="sc"><div class="sv cm" id="shab">0%</div><div class="sl">habits</div></div>
   </div>
-  <div class="scon">
+  <div id="wt-banner" style="display:none;background:linear-gradient(135deg,var(--gold),var(--rose));margin:0 14px 10px;border-radius:var(--r);padding:14px 16px;align-items:center;gap:12px;flex-shrink:0;">
+  <div style="font-size:28px;">⚖️</div>
+  <div style="flex:1;">
+    <div style="color:#fff;font-size:13px;font-weight:700;">Weekly Weigh-In Monday!</div>
+    <div style="color:rgba(255,255,255,0.8);font-size:11px;margin-top:2px;">Log your weight to track progress</div>
+  </div>
+  <button onclick="st('prog');document.getElementById('wt-banner').style.display='none';" style="background:rgba(255,255,255,0.9);border:none;border-radius:999px;padding:7px 14px;font-family:Nunito,sans-serif;font-size:12px;font-weight:700;color:var(--rose-d);cursor:pointer;">Log Now →</button>
+  <button onclick="document.getElementById('wt-banner').style.display='none';" style="background:none;border:none;color:rgba(255,255,255,0.7);font-size:18px;cursor:pointer;">✕</button>
+</div>
+<div class="scon">
     <div id="tt" class="tp on">
       <div class="prof-wrap">
         <div class="prof-img" id="profImgDiv" onclick="document.getElementById('photo-input').click()"><span>💅</span></div>
@@ -505,6 +514,18 @@ function tkey(){const d=new Date();return`${d.getFullYear()}-${d.getMonth()+1}-$
 function tlog(){const k=tkey();if(!S.dlogs[k])S.dlogs[k]={checks:{},meals:{},water:0};return S.dlogs[k];}
 
 function updStats(){
+  // Weekly weight reminder — prompt if Monday and not yet logged today
+  const now=new Date();
+  if(now.getDay()===1){
+    const k=`${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}`;
+    if(!S._wWeek||S._wWeek!==k){
+      setTimeout(()=>{
+        const banner=document.getElementById('wt-banner');
+        if(banner) banner.style.display='flex';
+      },1000);
+    }
+  }
+
   const lw=S.wlog&&S.wlog.length?S.wlog[S.wlog.length-1].w:58;
   document.getElementById('sw').textContent=lw;
   const diff=Math.floor((new Date()-START_DATE)/86400000);
@@ -561,54 +582,124 @@ function renderMeals(){
 
 function renderGym(){
   const dn=['SUN','MON','TUE','WED','THU','FRI','SAT'];
-  const today=dn[new Date().getDay()];const wp=WKPLAN.find(w=>w.d===today);
-  const c=document.getElementById('gtc');const h=document.getElementById('gsh');
-  if(!wp){c.innerHTML='';h.style.display='none';return;}h.style.display='';
-  if(wp.t==='rest'){
-    const l=tlog();const rd=l.restDone;
-    c.innerHTML=`<div style="background:var(--mauve-l);border-radius:var(--r);padding:18px;margin-bottom:12px;text-align:center;">
-      <div style="font-size:36px">${rd?'✅':'🧘'}</div>
-      <div style="font-size:15px;font-weight:700;color:var(--mauve);margin-top:6px">${rd?'Rest Day Done ✅':'Rest Day'}</div>
-      <div style="font-size:12px;color:var(--mid);margin-top:3px">Muscles grow on rest days 💅</div>
-      <button onclick="markRest()" style="margin-top:12px;padding:10px 24px;background:var(--mauve);color:#fff;border:none;border-radius:999px;font-family:Nunito,sans-serif;font-size:13px;font-weight:700;cursor:pointer;">${rd?'✅ Marked':'Mark as Rested'}</button>
-    </div>`;return;
-  }
-  if(wp.t==='walk'){
-    const l=tlog();const wd=l.walkDone;
-    c.innerHTML=`<div style="background:var(--teal-l);border-radius:var(--r);padding:18px;margin-bottom:12px;text-align:center;">
-      <div style="font-size:36px">${wd?'✅':'🚶‍♀️'}</div>
-      <div style="font-size:15px;font-weight:700;color:var(--teal);margin-top:6px">${wd?'Walk Done! ✅':'Brisk Walk — 25 min'}</div>
-      <div style="font-size:12px;color:var(--mid);margin-top:3px">Great after your salon day!</div>
-      <button onclick="markWalk()" style="margin-top:12px;padding:10px 24px;background:var(--teal);color:#fff;border:none;border-radius:999px;font-family:Nunito,sans-serif;font-size:13px;font-weight:700;cursor:pointer;">${wd?'✅ Done':'Mark Walk Done'}</button>
-    </div>`;return;
-  }
-  const g=GYMS[today];if(!g){c.innerHTML='';return;}
-  const l2=tlog();if(!l2.exDone)l2.exDone={};
-  const dc=g.ex.filter((_,i)=>l2.exDone[today+'_'+i]).length;
-  const allDone=dc===g.ex.length;
+  const today=dn[new Date().getDay()];
+  const wp=WKPLAN.find(w=>w.d===today);
+  const c=document.getElementById('gtc');
+  const h=document.getElementById('gsh');
+  h.style.display='';
+
+  const l2=tlog(); if(!l2.exDone) l2.exDone={};
+  if(!l2.customEx) l2.customEx=[];
+
+  // Which preset gym to show
+  const g=GYMS[today]||GYMS['MON']; // fallback to MON if no gym for today
+
+  // Day type badge
+  const dayType = wp?wp.t:'rest';
+  const dayBadge = dayType==='gym'?'💪 Gym Day':dayType==='walk'?'🚶 Walk Day':dayType==='home'?'🏃 Home Day':'🧘 Rest Day';
+  const badgeColor = dayType==='gym'?'var(--navy)':dayType==='walk'?'var(--teal)':dayType==='home'?'var(--sage)':'var(--mauve)';
+
+  // Walk done button
+  const walkDone = l2.walkDone;
+  const restDone = l2.restDone;
+
+  // Preset exercises with checkboxes
+  const doneCount=g.ex.filter((_,i)=>l2.exDone[today+'_'+i]).length;
+  const allPresetDone=doneCount===g.ex.length;
+
   const exHtml=g.ex.map((e,i)=>{
     const done=l2.exDone[today+'_'+i];
-    return '<div class="gyex" onclick="toggleEx(\''+today+'\','+i+')">'
-      +'<div style="width:20px;height:20px;border-radius:6px;border:2px solid rgba(255,255,255,'+(done?'0.9':'0.4')+');display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0;background:'+(done?'rgba(255,255,255,0.9)':'transparent')+';color:var(--navy);">'+(done?'✓':'')+'</div>'
-      +'<span class="gyen" style="'+(done?'text-decoration:line-through;opacity:.5':'')+'">'+e.n+'</span>'
+    return '<div class="gyex" onclick="toggleEx(''+today+'','+i+')">'
+      +'<div style="width:22px;height:22px;border-radius:7px;border:2px solid rgba(255,255,255,'+(done?'1':'0.35')+');display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;background:'+(done?'rgba(255,255,255,0.95)':'transparent')+';color:var(--navy);transition:.2s;">'+(done?'✓':'')+'</div>'
+      +'<span class="gyen" style="flex:1;'+(done?'text-decoration:line-through;opacity:.5':'')+'">'+e.n+'</span>'
       +'<span class="gyes">'+e.s+'</span></div>';
   }).join('');
-  c.innerHTML='<div class="gymcard"><div class="gytit">🏋️ '+g.title+'</div>'
-    +'<div class="gysub">Tap each to check off • '+dc+'/'+g.ex.length+' done</div>'
-    +'<div class="gylist">'+exHtml+'</div>'
-    +'<button onclick="markWorkoutDone()" style="width:100%;margin-top:12px;padding:13px;background:'+(allDone?'rgba(255,255,255,0.9)':'rgba(255,255,255,0.15)')+';border:2px solid rgba(255,255,255,0.3);border-radius:var(--rsm);color:'+(allDone?'var(--navy)':'#fff')+';font-family:Nunito,sans-serif;font-size:14px;font-weight:700;cursor:pointer;">'
+
+  // Custom exercises
+  const custHtml=l2.customEx.map((e,i)=>{
+    return '<div class="gyex" onclick="toggleCustEx('+i+')">'
+      +'<div style="width:22px;height:22px;border-radius:7px;border:2px solid rgba(255,255,255,'+(e.done?'1':'0.35')+');display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;background:'+(e.done?'rgba(255,255,255,0.95)':'transparent')+';color:var(--navy);transition:.2s;">'+(e.done?'✓':'')+'</div>'
+      +'<span class="gyen" style="flex:1;'+(e.done?'text-decoration:line-through;opacity:.5':'')+'">'+e.name+'</span>'
+      +'<span class="gyes">'+e.sets+'</span>'
+      +'<button onclick="event.stopPropagation();delCustEx('+i+')" style="background:rgba(255,255,255,0.15);border:none;border-radius:6px;color:#fff;font-size:11px;padding:2px 7px;cursor:pointer;margin-left:4px;">✕</button></div>';
+  }).join('');
+
+  const totalDone=doneCount+l2.customEx.filter(e=>e.done).length;
+  const totalEx=g.ex.length+l2.customEx.length;
+  const allDone=totalDone===totalEx&&totalEx>0;
+
+  // Walk/rest quick mark
+  let quickMark='';
+  if(dayType==='walk'){
+    quickMark='<button onclick="markWalk()" style="width:100%;padding:10px;background:'+(walkDone?'rgba(255,255,255,0.9)':'rgba(255,255,255,0.12)')+';border:1px solid rgba(255,255,255,0.3);border-radius:var(--rsm);color:'+(walkDone?'var(--teal)':'#fff')+';font-family:Nunito,sans-serif;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:10px;">'+(walkDone?'✅ Walk Done!':'🚶 Mark 25-min Walk Done')+'</button>';
+  }
+  if(dayType==='rest'){
+    quickMark='<button onclick="markRest()" style="width:100%;padding:10px;background:'+(restDone?'rgba(255,255,255,0.9)':'rgba(255,255,255,0.12)')+';border:1px solid rgba(255,255,255,0.3);border-radius:var(--rsm);color:'+(restDone?'var(--mauve)':'#fff')+';font-family:Nunito,sans-serif;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:10px;">'+(restDone?'✅ Rest Logged':'🧘 Mark Rest Day Done')+'</button>';
+  }
+
+  c.innerHTML='<div class="gymcard">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">'
+    +'<div class="gytit">🏋️ Today's Workout</div>'
+    +'<span style="background:'+badgeColor+';color:#fff;font-size:10px;padding:3px 10px;border-radius:999px;font-weight:700;">'+dayBadge+'</span></div>'
+    +'<div class="gysub">Tap each exercise to check off &nbsp;•&nbsp; '+totalDone+'/'+totalEx+' done</div>'
+    + quickMark
+    +'<div class="gylist">'+exHtml+custHtml+'</div>'
+
+    // Add custom exercise form
+    +'<div style="display:flex;gap:6px;margin-top:10px;">'
+    +'<input id="cex-name" placeholder="Exercise name" style="flex:2;padding:8px 10px;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:var(--rsm);color:#fff;font-family:Nunito,sans-serif;font-size:12px;outline:none;" autocomplete="off">'
+    +'<input id="cex-sets" placeholder="Sets×Reps" style="flex:1;padding:8px 10px;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:var(--rsm);color:#fff;font-family:Nunito,sans-serif;font-size:12px;outline:none;" autocomplete="off">'
+    +'<button onclick="addCustEx()" style="padding:8px 12px;background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.4);border-radius:var(--rsm);color:#fff;font-family:Nunito,sans-serif;font-size:13px;font-weight:700;cursor:pointer;">+</button></div>'
+
+    +'<button onclick="markWorkoutDone()" style="width:100%;margin-top:10px;padding:13px;background:'+(allDone?'rgba(255,255,255,0.95)':'rgba(255,255,255,0.15)')+';border:2px solid rgba(255,255,255,0.3);border-radius:var(--rsm);color:'+(allDone?'var(--navy)':'#fff')+';font-family:Nunito,sans-serif;font-size:14px;font-weight:700;cursor:pointer;">'
     +(allDone?'✅ Workout Complete!':'Mark Full Workout Done 💪')+'</button></div>';
 }
-async function toggleEx(day,idx){const l=tlog();if(!l.exDone)l.exDone={};l.exDone[day+'_'+idx]=!l.exDone[day+'_'+idx];await save();renderGym();}
+
+async function toggleEx(day,idx){
+  const l=tlog(); if(!l.exDone) l.exDone={};
+  l.exDone[day+'_'+idx]=!l.exDone[day+'_'+idx];
+  await save(); renderGym();
+}
+async function toggleCustEx(i){
+  const l=tlog(); if(!l.customEx) return;
+  l.customEx[i].done=!l.customEx[i].done;
+  await save(); renderGym();
+}
+async function addCustEx(){
+  const name=document.getElementById('cex-name').value.trim();
+  const sets=document.getElementById('cex-sets').value.trim()||'3×12';
+  if(!name){toast('Enter exercise name');return;}
+  const l=tlog(); if(!l.customEx) l.customEx=[];
+  l.customEx.push({name,sets,done:false});
+  await save();
+  document.getElementById('cex-name').value='';
+  document.getElementById('cex-sets').value='';
+  renderGym(); toast('✅ '+name+' added!');
+}
+async function delCustEx(i){
+  const l=tlog(); if(!l.customEx) return;
+  l.customEx.splice(i,1); await save(); renderGym();
+}
 async function markWorkoutDone(){
   const dn=['SUN','MON','TUE','WED','THU','FRI','SAT'];
-  const today=dn[new Date().getDay()];const g=GYMS[today];
-  const l=tlog();if(!l.exDone)l.exDone={};
-  if(g)g.ex.forEach((_,i)=>{l.exDone[today+'_'+i]=true;});
-  l.checks['workout']=true;await save();renderGym();renderChecks();updStats();toast('💪 Workout complete!');
+  const today=dn[new Date().getDay()]; const g=GYMS[today]||GYMS['MON'];
+  const l=tlog(); if(!l.exDone) l.exDone={};
+  g.ex.forEach((_,i)=>{l.exDone[today+'_'+i]=true;});
+  if(l.customEx) l.customEx.forEach(e=>e.done=true);
+  l.checks['workout']=true;
+  await save(); renderGym(); renderChecks(); updStats();
+  toast('💪 Workout complete!');
 }
-async function markWalk(){const l=tlog();l.walkDone=!l.walkDone;l.checks['workout']=l.walkDone;await save();renderGym();renderChecks();updStats();if(l.walkDone)toast('🚶 Walk done!');}
-async function markRest(){const l=tlog();l.restDone=!l.restDone;await save();renderGym();if(l.restDone)toast('🧘 Rest day logged!');}
+async function markWalk(){
+  const l=tlog(); l.walkDone=!l.walkDone; l.checks['workout']=l.walkDone;
+  await save(); renderGym(); renderChecks(); updStats();
+  if(l.walkDone) toast('🚶 Walk done!');
+}
+async function markRest(){
+  const l=tlog(); l.restDone=!l.restDone;
+  await save(); renderGym();
+  if(l.restDone) toast('🧘 Rest day logged!');
+}
 
 function renderFruits(){const c=document.getElementById('fl');c.innerHTML='';FRUITS.forEach(f=>{const d=document.createElement('div');d.className='fch';d.innerHTML=`<span class="fem">${f.e}</span><div class="fn">${f.n}</div><div class="fs ${f.c}">${f.s}</div>`;c.appendChild(d);});}
 function renderNailTips(){const c=document.getElementById('nailtips');c.innerHTML='';NAIL_TIPS.forEach(t=>{const d=document.createElement('div');d.className='ntip';d.innerHTML=`<div class="nti">${t.i}</div><div class="ntb"><b>${t.t}</b>${t.b}</div>`;c.appendChild(d);});}
